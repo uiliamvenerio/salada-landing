@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { db } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 const categories = [
@@ -33,13 +34,45 @@ const initialFormData = {
 
 export function RecipeForm({ recipe, onSubmit, onCancel }) {
   const [formData, setFormData] = useState(recipe || initialFormData);
+  const [availableIngredients, setAvailableIngredients] = useState([]);
+  const [filteredIngredients, setFilteredIngredients] = useState([]);
+  const [ingredientFilter, setIngredientFilter] = useState('');
+  const [showIngredientDropdown, setShowIngredientDropdown] = useState(false);
   const [currentIngredient, setCurrentIngredient] = useState({
+    ingredient_id: null,
     name: '',
     quantity: '',
     unit: 'g',
     correctionFactor: ''
   });
   const [currentStep, setCurrentStep] = useState('');
+
+  useEffect(() => {
+    loadIngredients();
+  }, []);
+
+  useEffect(() => {
+    if (ingredientFilter) {
+      const filtered = availableIngredients.filter(ingredient =>
+        ingredient.descricao_alimento.toLowerCase().includes(ingredientFilter.toLowerCase())
+      );
+      setFilteredIngredients(filtered);
+      setShowIngredientDropdown(true);
+    } else {
+      setFilteredIngredients([]);
+      setShowIngredientDropdown(false);
+    }
+  }, [ingredientFilter, availableIngredients]);
+
+  const loadIngredients = async () => {
+    try {
+      const ingredients = await db.ingredients.getAll();
+      setAvailableIngredients(ingredients);
+    } catch (error) {
+      console.error('Error loading ingredients:', error);
+      toast.error('Erro ao carregar ingredientes');
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -57,6 +90,16 @@ export function RecipeForm({ recipe, onSubmit, onCancel }) {
     onSubmit(formData);
   };
 
+  const handleIngredientSelect = (ingredient) => {
+    setCurrentIngredient({
+      ...currentIngredient,
+      ingredient_id: ingredient.id,
+      name: ingredient.descricao_alimento
+    });
+    setIngredientFilter(ingredient.descricao_alimento);
+    setShowIngredientDropdown(false);
+  };
+
   const addIngredient = () => {
     if (!currentIngredient.name || !currentIngredient.quantity) {
       toast.error('Preencha o nome e quantidade do ingrediente');
@@ -67,7 +110,8 @@ export function RecipeForm({ recipe, onSubmit, onCancel }) {
       ...formData,
       ingredients: [...formData.ingredients, currentIngredient]
     });
-    setCurrentIngredient({ name: '', quantity: '', unit: 'g', correctionFactor: '' });
+    setCurrentIngredient({ ingredient_id: null, name: '', quantity: '', unit: 'g', correctionFactor: '' });
+    setIngredientFilter('');
   };
 
   const addPreparationStep = () => {
@@ -187,13 +231,35 @@ export function RecipeForm({ recipe, onSubmit, onCancel }) {
                   </label>
                   <div className="space-y-2">
                     <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Nome do ingrediente"
-                        value={currentIngredient.name}
-                        onChange={(e) => setCurrentIngredient({ ...currentIngredient, name: e.target.value })}
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-hover text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      />
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          placeholder="Digite para buscar ingrediente"
+                          value={ingredientFilter}
+                          onChange={(e) => {
+                            setIngredientFilter(e.target.value);
+                            setCurrentIngredient({ ...currentIngredient, ingredient_id: null, name: e.target.value });
+                          }}
+                          className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-hover text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                        />
+                        {showIngredientDropdown && filteredIngredients.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-dark-card border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-auto">
+                            {filteredIngredients.map((ingredient) => (
+                              <button
+                                key={ingredient.id}
+                                type="button"
+                                onClick={() => handleIngredientSelect(ingredient)}
+                                className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-dark-hover text-gray-900 dark:text-white"
+                              >
+                                <div>
+                                  <p className="font-medium">{ingredient.descricao_alimento}</p>
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">{ingredient.categoria}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <input
                         type="number"
                         placeholder="Quantidade"
@@ -228,7 +294,10 @@ export function RecipeForm({ recipe, onSubmit, onCancel }) {
                     <div className="border rounded-lg divide-y dark:divide-gray-700">
                       {formData.ingredients.map((ingredient, index) => (
                         <div key={index} className="p-2 flex justify-between items-center">
-                          <span>{ingredient.name} - {ingredient.quantity}{ingredient.unit}</span>
+                          <span>
+                            {ingredient.name} - {ingredient.quantity}{ingredient.unit}
+                            {ingredient.correctionFactor && ` (FC: ${ingredient.correctionFactor})`}
+                          </span>
                           <button
                             type="button"
                             onClick={() => setFormData({

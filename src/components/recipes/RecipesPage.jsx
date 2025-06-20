@@ -1,117 +1,136 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { RecipesList } from './RecipesList';
 import { RecipeStats } from './RecipeStats';
-import { RecipeForm } from './RecipeForm';
-
-const initialRecipes = [
-  {
-    id: 1,
-    name: 'Carne de Panela',
-    category: 'Prato Principal', 
-    yield: 30,
-    prepTime: 60,
-    budget: 5000,
-    spent: 2500,
-    metrics: {
-      sent: 10000,
-      opened: 4500,
-      clicked: 2000,
-      converted: 500
-    }
-  },
-  {
-    id: 2,
-    name: 'Carne Moída com Molho de Tomate',
-    category: 'Prato Principal', 
-    yield: 30,
-    prepTime: 60,
-    budget: 10000,
-    spent: 0,
-    metrics: {
-      impressions: 0,
-      engagement: 0,
-      clicks: 0,
-      conversions: 0
-    }
-  },
-  {
-    id: 3,
-    name: 'Iscas de Porco com Cebola',
-    category: 'Prato Principal', 
-    yield: 30,
-    prepTime: 60,
-    budget: 8000,
-    spent: 8000,
-    metrics: {
-      sent: 15000,
-      opened: 8000,
-      clicked: 4000,
-      converted: 1200
-    }
-  }
-];
+import { RecipeModal } from './RecipeModal';
+import { RecipeDetailsModal } from './RecipeDetailsModal';
+import { db } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
 export function RecipesPage() {
-  const [recipes, setRecipes] = useState(initialRecipes);
-  const [isAddingRecipe, setIsAddingRecipe] = useState(false);
+  const [recipes, setRecipes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [viewingRecipe, setViewingRecipe] = useState(null);
   const [filters, setFilters] = useState({
     status: 'all',
     type: 'all',
     search: ''
   });
 
-  const handleCreateRecipe = (recipe) => {
-    setRecipes([...recipes, { ...recipe, id: Date.now() }]);
-    setIsAddingRecipe(false);
+  useEffect(() => {
+    loadRecipes();
+  }, []);
+
+  const loadRecipes = async () => {
+    try {
+      setLoading(true);
+      const data = await db.recipes.getAll();
+      
+      // Transform data to match component expectations
+      const transformedRecipes = data.map(recipe => ({
+        ...recipe,
+        measurementUnit: recipe.measurement_unit,
+        cookingIndex: recipe.cooking_index,
+        internalCode: recipe.internal_code,
+        prepTime: recipe.prep_time,
+        grossWeight: recipe.gross_weight,
+        netWeight: recipe.net_weight,
+        correctionFactor: recipe.correction_factor,
+        ingredients: recipe.recipe_ingredients?.map(ri => ({
+          ingredient_id: ri.ingredient_id,
+          name: ri.ingredients?.descricao_alimento || '',
+          quantity: ri.quantity,
+          unit: ri.unit,
+          correctionFactor: ri.correction_factor
+        })) || [],
+        preparationSteps: recipe.preparation_steps?.map(step => ({
+          number: step.step_number,
+          description: step.description
+        })) || []
+      }));
+      
+      setRecipes(transformedRecipes);
+    } catch (error) {
+      console.error('Error loading recipes:', error);
+      toast.error('Erro ao carregar receitas');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateRecipe = (updatedRecipe) => {
-    setRecipes(recipes.map(c => 
-      c.id === updatedRecipe.id ? updatedRecipe : c
-    ));
-    setSelectedRecipe(null);
+  const handleCreateRecipe = async (recipe) => {
+    try {
+      const newRecipe = await db.recipes.create(recipe);
+      await loadRecipes(); // Reload to get complete data with relationships
+      setIsModalOpen(false);
+      toast.success('Receita criada com sucesso!');
+    } catch (error) {
+      console.error('Error creating recipe:', error);
+      toast.error('Erro ao criar receita');
+    }
   };
 
-  const handleDeleteRecipe = (id) => {
-    setRecipes(recipes.filter(c => c.id !== id));
+  const handleUpdateRecipe = async (updatedRecipe) => {
+    try {
+      await db.recipes.update(updatedRecipe.id, updatedRecipe);
+      await loadRecipes(); // Reload to get complete data with relationships
+      setSelectedRecipe(null);
+      setIsModalOpen(false);
+      toast.success('Receita atualizada com sucesso!');
+    } catch (error) {
+      console.error('Error updating recipe:', error);
+      toast.error('Erro ao atualizar receita');
+    }
+  };
+
+  const handleDeleteRecipe = async (id) => {
+    if (!confirm('Tem certeza que deseja excluir esta receita?')) {
+      return;
+    }
+
+    try {
+      await db.recipes.delete(id);
+      setRecipes(recipes.filter(r => r.id !== id));
+      toast.success('Receita excluída com sucesso!');
+    } catch (error) {
+      console.error('Error deleting recipe:', error);
+      toast.error('Erro ao excluir receita');
+    }
+  };
+
+  const handleViewDetails = (recipe) => {
+    setViewingRecipe(recipe);
+  };
+
+  const handleEditRecipe = (recipe) => {
+    setSelectedRecipe(recipe);
+    setIsModalOpen(true);
   };
 
   const filteredRecipes = recipes.filter(recipe => {
-    if (filters.status !== 'all' && recipe.status !== filters.status) return false;
-    if (filters.type !== 'all' && recipe.type !== filters.type) return false;
     if (filters.search && !recipe.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
     return true;
   });
 
   // Calculate total metrics
   const totalMetrics = recipes.reduce((acc, recipe) => {
-    if (recipe.type === 'email') {
-      acc.emailsSent += recipe.metrics.sent || 0;
-      acc.conversions += recipe.metrics.converted || 0;
-    }
-    acc.spent += recipe.spent || 0;
+    acc.totalRecipes += 1;
+    acc.totalIngredients += recipe.ingredients?.length || 0;
     return acc;
-  }, { emailsSent: 0, conversions: 0, spent: 0 });
+  }, { totalRecipes: 0, totalIngredients: 0 });
 
-  if (isAddingRecipe) {
+  if (loading) {
     return (
-      <RecipeForm
-        onSubmit={handleCreateRecipe}
-        onCancel={() => setIsAddingRecipe(false)}
-      />
-    );
-  }
-
-  if (selectedRecipe) {
-    return (
-      <RecipeForm
-        recipe={selectedRecipe}
-        onSubmit={handleUpdateRecipe}
-        onCancel={() => setSelectedRecipe(null)}
-      />
+      <main className="flex-1 min-w-0 overflow-auto">
+        <div className="max-w-[1440px] mx-auto animate-fade-in">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-gray-500 dark:text-gray-400">Carregando receitas...</div>
+          </div>
+        </div>
+      </main>
     );
   }
 
@@ -120,29 +139,32 @@ export function RecipesPage() {
       <div className="max-w-[1440px] mx-auto animate-fade-in">
         <div className="flex flex-wrap items-center justify-between gap-4 p-4">
           <h1 className="text-gray-900 dark:text-white text-2xl md:text-3xl font-bold">Receitas</h1>
-          <Button onClick={() => setIsAddingRecipe(true)}>
+          <Button onClick={() => {
+            setSelectedRecipe(null);
+            setIsModalOpen(true);
+          }}>
             Nova Receita
           </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
           <RecipeStats
-            title="Total Emails Sent"
-            value={totalMetrics.emailsSent.toLocaleString()}
+            title="Total de Receitas"
+            value={totalMetrics.totalRecipes.toString()}
             trend="+12.5%"
-            description="Compared to last month"
+            description="Comparado ao mês passado"
           />
           <RecipeStats
-            title="Total Conversions"
-            value={totalMetrics.conversions.toLocaleString()}
+            title="Total de Ingredientes"
+            value={totalMetrics.totalIngredients.toString()}
             trend="+8.2%"
-            description="Compared to last month"
+            description="Comparado ao mês passado"
           />
           <RecipeStats
-            title="Total Spent"
-            value={`$${totalMetrics.spent.toLocaleString()}`}
+            title="Receitas Ativas"
+            value={totalMetrics.totalRecipes.toString()}
             trend="+15.3%"
-            description="Compared to last month"
+            description="Comparado ao mês passado"
           />
         </div>
 
@@ -157,37 +179,36 @@ export function RecipesPage() {
                   onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                   className="flex-1 min-w-[200px] px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-hover text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <select
-                  value={filters.type}
-                  onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-hover text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                >
-                  <option value="all">All Types</option>
-                  <option value="email">Email</option>
-                  <option value="social">Social</option>
-                </select>
               </div>
             </CardHeader>
             <CardContent>
               <RecipesList
                 recipes={filteredRecipes}
-                onEdit={setSelectedRecipe}
+                onEdit={handleEditRecipe}
                 onDelete={handleDeleteRecipe}
+                onViewDetails={handleViewDetails}
               />
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <RecipeModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedRecipe(null);
+        }}
+        onSubmit={selectedRecipe ? handleUpdateRecipe : handleCreateRecipe}
+        recipe={selectedRecipe}
+      />
+
+      {viewingRecipe && (
+        <RecipeDetailsModal
+          recipe={viewingRecipe}
+          onClose={() => setViewingRecipe(null)}
+        />
+      )}
     </main>
   );
 }

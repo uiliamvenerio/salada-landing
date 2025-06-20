@@ -38,10 +38,7 @@ export function AddClientModal({ isOpen, onClose, onAdd }) {
       return;
     }
 
-    onAdd({
-      ...formData,
-      id: Date.now(),
-    });
+    onAdd(formData);
     
     toast.success('Cliente adicionado com sucesso!');
     onClose();

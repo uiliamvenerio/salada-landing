@@ -1,24 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IngredientsList } from './IngredientsList';
 import { IngredientModal } from './IngredientModal';
-
-const initialIngredients = [
-  {
-    id: 1,
-    tabela_nutricional: 'TACO',
-    numero_alimento: '001',
-    descricao_alimento: 'Arroz branco cozido',
-    categoria: 'Cereais',
-    energia_kcal: 128.0,
-    proteina_g: 2.5,
-    carboidrato_g: 28.1,
-  },
-];
+import { db } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
 export function IngredientsPage() {
-  const [ingredients, setIngredients] = useState(initialIngredients);
+  const [ingredients, setIngredients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState(null);
   const [filters, setFilters] = useState({
@@ -26,18 +16,63 @@ export function IngredientsPage() {
     category: 'all'
   });
 
-  const handleCreateIngredient = (ingredient) => {
-    setIngredients([...ingredients, { ...ingredient, id: Date.now() }]);
+  useEffect(() => {
+    loadIngredients();
+  }, []);
+
+  const loadIngredients = async () => {
+    try {
+      setLoading(true);
+      const data = await db.ingredients.getAll();
+      setIngredients(data);
+    } catch (error) {
+      console.error('Error loading ingredients:', error);
+      toast.error('Erro ao carregar ingredientes');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateIngredient = (updatedIngredient) => {
-    setIngredients(ingredients.map(i => 
-      i.id === updatedIngredient.id ? updatedIngredient : i
-    ));
+  const handleCreateIngredient = async (ingredient) => {
+    try {
+      const newIngredient = await db.ingredients.create(ingredient);
+      setIngredients([newIngredient, ...ingredients]);
+      setIsModalOpen(false);
+      toast.success('Ingrediente criado com sucesso!');
+    } catch (error) {
+      console.error('Error creating ingredient:', error);
+      toast.error('Erro ao criar ingrediente');
+    }
   };
 
-  const handleDeleteIngredient = (id) => {
-    setIngredients(ingredients.filter(i => i.id !== id));
+  const handleUpdateIngredient = async (updatedIngredient) => {
+    try {
+      const updated = await db.ingredients.update(updatedIngredient.id, updatedIngredient);
+      setIngredients(ingredients.map(i => 
+        i.id === updated.id ? updated : i
+      ));
+      setIsModalOpen(false);
+      setSelectedIngredient(null);
+      toast.success('Ingrediente atualizado com sucesso!');
+    } catch (error) {
+      console.error('Error updating ingredient:', error);
+      toast.error('Erro ao atualizar ingrediente');
+    }
+  };
+
+  const handleDeleteIngredient = async (id) => {
+    if (!confirm('Tem certeza que deseja excluir este ingrediente?')) {
+      return;
+    }
+
+    try {
+      await db.ingredients.delete(id);
+      setIngredients(ingredients.filter(i => i.id !== id));
+      toast.success('Ingrediente excluído com sucesso!');
+    } catch (error) {
+      console.error('Error deleting ingredient:', error);
+      toast.error('Erro ao excluir ingrediente');
+    }
   };
 
   const filteredIngredients = ingredients.filter(ingredient => {
@@ -49,6 +84,18 @@ export function IngredientsPage() {
     }
     return true;
   });
+
+  if (loading) {
+    return (
+      <main className="flex-1 min-w-0 overflow-auto">
+        <div className="max-w-[1440px] mx-auto animate-fade-in">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-gray-500 dark:text-gray-400">Carregando ingredientes...</div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 min-w-0 overflow-auto">

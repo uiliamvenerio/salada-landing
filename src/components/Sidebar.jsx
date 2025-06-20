@@ -1,12 +1,12 @@
 import React from 'react';
-import { House, UsersThree, ChatDots, Megaphone, ChartPie } from './Icons';
+import { House, UsersThree, ChatDots, Megaphone, ChartPie } from '../components/Icons';
 import clsx from 'clsx';
 
 /**
  * Navigation menu items configuration
  * Each item defines an id, icon component, and display text
  */
-const menuItems = [
+const menuItems = [  
   { id: 'dashboard', icon: House, text: 'Home' },
   { id: 'clients', icon: UsersThree, text: 'Clientes' },
   { id: 'ingredients', icon: ChatDots, text: 'Ingredientes' },

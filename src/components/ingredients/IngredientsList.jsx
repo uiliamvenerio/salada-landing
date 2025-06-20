@@ -1,8 +1,13 @@
 import React from 'react';
-import { Menu } from '@headlessui/react';
-import clsx from 'clsx';
+import { Edit, Trash2 } from 'lucide-react';
 
 export function IngredientsList({ ingredients, onEdit, onDelete }) {
+  const handleDeleteClick = (ingredient) => {
+    if (confirm(`Tem certeza que deseja excluir o ingrediente "${ingredient.descricao_alimento}"?`)) {
+      onDelete(ingredient.id);
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[800px]">
@@ -37,44 +42,22 @@ export function IngredientsList({ ingredients, onEdit, onDelete }) {
                 <p className="text-sm text-gray-900 dark:text-white">{ingredient.proteina_g}</p>
               </td>
               <td className="py-3 px-4 text-right">
-                <Menu as="div" className="relative inline-block text-left">
-                  <Menu.Button className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-                      <path d="M112,60a16,16,0,1,1,16,16A16,16,0,0,1,112,60Zm16,52a16,16,0,1,0,16,16A16,16,0,0,0,128,112Zm0,68a16,16,0,1,0,16,16A16,16,0,0,0,128,180Z" />
-                    </svg>
-                  </Menu.Button>
-
-                  <Menu.Items className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-card rounded-lg shadow-lg border border-gray-100 dark:border-gray-800 focus:outline-none">
-                    <div className="p-1">
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            onClick={() => onEdit(ingredient)}
-                            className={clsx(
-                              'flex w-full items-center px-3 py-2 text-sm rounded-md',
-                              active ? 'bg-gray-100 dark:bg-dark-hover' : ''
-                            )}
-                          >
-                            Editar Ingrediente
-                          </button>
-                        )}
-                      </Menu.Item>
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            onClick={() => onDelete(ingredient.id)}
-                            className={clsx(
-                              'flex w-full items-center px-3 py-2 text-sm rounded-md text-red-600 dark:text-red-400',
-                              active ? 'bg-gray-100 dark:bg-dark-hover' : ''
-                            )}
-                          >
-                            Excluir Ingrediente
-                          </button>
-                        )}
-                      </Menu.Item>
-                    </div>
-                  </Menu.Items>
-                </Menu>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => onEdit(ingredient)}
+                    className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                    title="Editar Ingrediente"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(ingredient)}
+                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Excluir Ingrediente"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

@@ -1,32 +1,40 @@
 import React from 'react';
 import { Menu } from '@headlessui/react';
+import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
 const userNavigation = [
-  { id: 'profile', name: 'Your Profile', icon: 'user' },
-  { id: 'settings', name: 'Settings', icon: 'settings' },
-  { id: 'logout', name: 'Sign out', icon: 'logout' },
+  { id: 'profile', name: 'Seu Perfil', icon: 'user' },
+  { id: 'settings', name: 'Configurações', icon: 'settings' },
+  { id: 'logout', name: 'Sair', icon: 'logout' },
 ];
 
 export function UserMenu({ onNavigate }) {
-  const handleAction = (action) => {
+  const { user, signOut } = useAuth();
+
+  const handleAction = async (action) => {
     if (action === 'profile') {
       onNavigate('profile');
     } else if (action === 'settings') {
       onNavigate('settings');
     } else if (action === 'logout') {
-      toast.success('Signed out successfully');
+      try {
+        await signOut();
+        toast.success('Logout realizado com sucesso');
+      } catch (error) {
+        toast.error('Erro ao fazer logout');
+      }
     }
   };
 
   return (
     <Menu as="div" className="relative">
       <Menu.Button className="flex items-center gap-2 p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
-        <img
-          src="https://cdn.usegalileo.ai/stability/117a7a12-7704-4917-9139-4a3f76c42e78.png"
-          alt="User"
-          className="w-8 h-8 rounded-full"
-        />
+        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+          <span className="text-primary text-sm font-medium">
+            {user?.email?.charAt(0).toUpperCase() || 'U'}
+          </span>
+        </div>
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
           <path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z" />
         </svg>
@@ -34,8 +42,10 @@ export function UserMenu({ onNavigate }) {
 
       <Menu.Items className="absolute right-0 mt-1 w-56 bg-white dark:bg-dark-card rounded-xl shadow-lg border border-gray-100 dark:border-gray-800 focus:outline-none">
         <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">Alice Freeman</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">alice@example.com</p>
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
+            {user?.user_metadata?.name || 'Usuário'}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</p>
         </div>
 
         <div className="p-2">
@@ -50,7 +60,7 @@ export function UserMenu({ onNavigate }) {
                 >
                   <span className={`text-gray-500 ${item.id === 'logout' ? 'text-red-500' : ''}`}>
                     {item.icon === 'user' ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
+                      <svg xmlns="http://www.w3.org/2000/svg\" width="16\" height="16\" fill="currentColor\" viewBox="0 0 256 256">
                         <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.83,40.31,185.71,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z" />
                       </svg>
                     ) : item.icon === 'settings' ? (
